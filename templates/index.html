@@ -1,0 +1,99 @@
+<div class="wide">Grünbeck Plugin</div>
+<form>
+	<TMPL_VAR MSHTML>
+	<div class="ui-field-contain">
+		<label for="msudpport">UDP-Port des Miniservers</label>
+		<input type="number" name="msudpport" id="msudpport" data-mini="false" value="<TMPL_VAR Main.msudpport>" placeholder="">
+	</div>
+	<div class="ui-field-contain">
+		<label for="gip">Grünbeck Hostname oder IP</label>
+		<input type="text" name="gip" id="gip" data-mini="false" value="<TMPL_VAR Main.gip>" placeholder="">
+	</div>
+</form>
+
+<div class="wide">Query Builder</div>
+<br>
+<label for="requestread">HTTP-Request</label>
+<textarea name="requestread" id="requestread" placeholder="Wähle unten Parameter aus, um hier den notwendigen Aufruf anzuzeigen." data-mini="true"></textarea>
+
+<fieldset data-role="controlgroup">
+<TMPL_LOOP GParams>
+	<input type="checkbox" class="gparameter" name="parameter-<TMPL_VAR Name>" id="parameter-<TMPL_VAR Name>" gruenbeckname="<TMPL_VAR Name>" data-mini="true">
+	<label for="parameter-<TMPL_VAR Name>"><TMPL_VAR Name>: <TMPL_VAR LangStr></label>
+	</TMPL_LOOP>
+
+</fieldset>
+
+
+
+<script>
+
+var url = "index.cgi";
+var vars = {};
+	
+$(document).on('pageinit', function() {
+
+	$( ":input" ).blur(function(e){change_value("change", e.target.id, $(this).val())});
+	$( "input[type='checkbox']" ).change(function(e){change_value("change", e.target.id, $(this).prop("checked"))});
+
+	$( ":input" ).focusin(function(e){ 
+		vars['old' + $(this).attr("id")] = $(this).val();
+		var respid = $(this).attr("id")+"resp";
+		// $("#"+respid).text("");
+		// $("#"+respid).css("color", "");
+		
+	});
+
+});
+
+function change_value (action, key, value)
+{
+	console.log("Action is", action, "Key is", key, "Value is", value);
+	if (vars['old' + key] === value) {
+		console.log("Nothing changed.");
+		return;
+	}
+
+	var posting = $.post( url, { 	action: action,
+					key: key,
+					value: value,
+				 });
+	posting.done(function(data){
+				console.log("OK");
+				// $("#" + data.key + "resp").css("color", "green");
+				//$("#" + data.key + "resp").text("Successfully saved");
+			 });
+	posting.error(function(data){
+				console.log("Error");
+				//$("#" + data.key + "resp").css("color", "red");
+				//$("#" + data.key + "resp").text("Error writing");
+			 });
+
+}
+
+$(".gparameter").change(function(e){calculate_url();});
+
+var par_selected;
+
+function calculate_url()
+{
+	par_selected = "";
+	$(".gparameter").each(function(){ 
+		if($(this).is(":checked")) 
+			par_selected = par_selected + $(this).attr('gruenbeckname') + '&';
+	});
+	if (par_selected.length > 0) {
+		par_selected = "action=GET&" + par_selected;
+		par_selected = par_selected.slice(0, -1);
+		// var lbhost = location.protocol + '//' + '<lbuser>:<lbpass>@' + location.host;
+		//if (location.port) 
+		//	lbhost = lbhost + ':' + location.port;
+		// par_selected = lbhost + '/admin/plugins/gruenbeck/request.cgi?' + par_selected;
+		par_selected = '/admin/plugins/gruenbeck/request.cgi?' + par_selected;
+	}
+	
+	// console.log("Current URL is", par_selected);
+	$('#requestread').val(par_selected);
+}
+
+</script>
