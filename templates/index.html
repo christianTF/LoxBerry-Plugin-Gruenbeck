@@ -14,17 +14,18 @@
 <div class="wide">Query Builder</div>
 <br>
 <label for="requestread">HTTP-Request</label>
-<textarea name="requestread" id="requestread" placeholder="Wähle unten Parameter aus, um hier den notwendigen Aufruf anzuzeigen." data-mini="true"></textarea>
-
+<textarea name="requestread" id="requestread" readonly placeholder="Wähle unten Parameter aus, um hier den notwendigen Aufruf anzuzeigen." data-mini="true"></textarea>
 <fieldset data-role="controlgroup">
-<TMPL_LOOP GParams>
-	<input type="checkbox" class="gparameter" name="parameter-<TMPL_VAR Name>" id="parameter-<TMPL_VAR Name>" gruenbeckname="<TMPL_VAR Name>" data-mini="true">
+	<TMPL_LOOP GParams>
+		<input type="checkbox" class="gparameter" name="parameter-<TMPL_VAR Name>" id="parameter-<TMPL_VAR Name>" gruenbeckname="<TMPL_VAR Name>" data-mini="true">
 	<label for="parameter-<TMPL_VAR Name>"><TMPL_VAR Name>: <TMPL_VAR LangStr></label>
 	</TMPL_LOOP>
-
 </fieldset>
 
 
+	<!-- <TMPL_LOOP GParams> -->
+	<!-- <input type="text" value="Gruenbeck:\i<TMPL_VAR Name>\i\v" data-mini="true"> -->
+	<!-- </TMPL_LOOP> -->
 
 <script>
 
