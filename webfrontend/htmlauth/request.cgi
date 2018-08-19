@@ -54,6 +54,10 @@ if ($action eq 'GET') {
 if ($action eq 'SET' or $action eq 'EDIT') {
 	my $query = 'id=666&' . params_set();
 	my $cont = request_post("http://$gip:$gport$gurl", $query);
+		
+	$query = 'id=666&' . params_get();
+	$query = $code ? $query . '&code=' . $code . '~' : $query . '~';
+	my $cont = request_post("http://$gip:$gport$gurl", $query);
 	parse_gxml($cont);
 	exit;
 }
@@ -90,8 +94,12 @@ sub params_set
 		print STDERR "Edit query is $qu\n";
 		my $cont = request_post("http://$gip:$gport$gurl", $query);
 		parse_gxml($cont);
-		
 	}
+	
+	
+	
+	
+	
 	return;
 	
 }
