@@ -40,31 +40,30 @@ $gcode = $cgi->param('code') if $cgi->param('code');
 $LoxBerry::IO::mem_sendall = 1 if $cgi->param('force');
 
 
-$cgi->delete('action', 'ms', 'msport', 'gip', 'gport', 'force');
+$cgi->delete('action', 'ms', 'msport', 'gip', 'gport', 'force', 'code');
 
 my @keywords = $cgi->param;
 
-if ($action eq 'GET') {
+if ($action eq 'GET' or $action eq 'SHOW') {
 	my $query = 'id=666&' . params_get();
-	$query = $code ? $query . '&code=' . $code . '~' : $query . '~';
+	$query = $gcode ? $query . '&code=' . $gcode . '~' : $query . '~';
 	my $cont = request_post("http://$gip:$gport$gurl", $query);
 	parse_gxml($cont);
 	exit;
 }
 if ($action eq 'SET' or $action eq 'EDIT') {
-	my $query = 'id=666&' . params_set();
-	my $cont = request_post("http://$gip:$gport$gurl", $query);
-		
-	$query = 'id=666&' . params_get();
-	$query = $code ? $query . '&code=' . $code . '~' : $query . '~';
-	my $cont = request_post("http://$gip:$gport$gurl", $query);
+	# Send values
+	params_set();
+	# Query edited values
+	my $query = 'id=666&' . params_get();
+	$query = $gcode ? $query . '&code=' . $gcode . '~' : $query . '~';
+	$cont = request_post("http://$gip:$gport$gurl", $query);
 	parse_gxml($cont);
 	exit;
 }
 
 print STDERR "No action defined\n";
 exit;
-
 
 sub params_get 
 {
@@ -88,29 +87,24 @@ sub params_set
 	# Build query
 	foreach my $param (@keywords) {
 		# Base64 encoding for several parameters
-		$value = param_is_base64($param, $cgi->param($param), 0);
+		$value = param_is_base64($param, scalar $cgi->param($param), 0);
 		$qu = 'id=666&edit=' . uc($param) . ">" . $value;
-		$qu = $code ? $qu . '&code=' . $code . '~' : $qu . '~';
+		$qu = $gcode ? $qu . '&code=' . $gcode . '~' : $qu . '~';
 		print STDERR "Edit query is $qu\n";
-		my $cont = request_post("http://$gip:$gport$gurl", $query);
+		my $cont = request_post("http://$gip:$gport$gurl", $qu);
 		parse_gxml($cont);
 	}
-	
-	
-	
-	
-	
 	return;
 	
 }
 
 sub request_post 
 {
-	my $url = shift;
-	my $query = shift;
+	my ($url, $query) = @_;
 
 	my $ua = LWP::UserAgent->new;
 	$ua->timeout(5);
+	print STDERR "request_post Query: $query\n";
 	my $response = $ua->post($url, Content => $query);
 	# my $response = $ua->post($url, Content => 'id=665&show=D_A_1_1|D_A_1_2~');
 	if ($response->is_error) {
@@ -138,9 +132,10 @@ sub parse_gxml
 	}
 	# use Data::Dumper;
 	# print Dumper($xml);
-#	foreach my $key (keys %{$xml}) {
-#		print STDERR $key . " is " . $$xml{$key} . "\n";
-#	}
+	foreach my $key (keys %{$xml}) {
+		$$xml{$key} = param_is_base64($key, $$xml{$key}, 1);
+		print STDERR $key . " is " . $$xml{$key} . "\n";
+	}
 
 	LoxBerry::IO::msudp_send_mem($msnr, $msudpport, $udpprefix, %{$xml});
 	
@@ -148,6 +143,8 @@ sub parse_gxml
 
 sub param_is_base64
 {
+	
+	# Param $decode: 0 = encode; 1 = decode
 	my ($param, $value, $decode) = @_;
 	$param = uc($param);
 	
