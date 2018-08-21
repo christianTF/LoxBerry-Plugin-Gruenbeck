@@ -26,19 +26,26 @@ $msudpport = $pcfg->param('Main.msudpport') if $pcfg->param('Main.msudpport');
 $gip = $pcfg->param('Main.gip') if $pcfg->param('Main.gip');
 $gport = $pcfg->param('Main.gport') if $pcfg->param('Main.gport');
 $gcode = $pcfg->param('Main.gcode') if $pcfg->param('Main.gcode');
+$useudp = is_enabled($pcfg->param('Main.use_udp'));
+$usehttp = is_enabled($pcfg->param('Main.use_http'));
 
 # Read params from URL
-# Params from URL overrule params from config
 my $cgi = CGI->new;
 
+# Upgrade config version
 my $action = uc($cgi->param('action'));
+if ($action = "upgrade_config") {
+	upgrade_config();
+	exit();
+}
+
+# Params from URL overrule params from config
 $msnr = $cgi->param('ms') if $cgi->param('ms');
 $msudpport = $cgi->param('msport') if $cgi->param('msport');
 $gip = $cgi->param('gip') if $cgi->param('gip');
 $gport = $cgi->param('gport') if $cgi->param('gport');
 $gcode = $cgi->param('code') if $cgi->param('code');
 $LoxBerry::IO::mem_sendall = 1 if $cgi->param('force');
-
 
 $cgi->delete('action', 'ms', 'msport', 'gip', 'gport', 'force', 'code');
 
@@ -137,7 +144,12 @@ sub parse_gxml
 		print STDERR $key . " is " . $$xml{$key} . "\n";
 	}
 
-	LoxBerry::IO::msudp_send_mem($msnr, $msudpport, $udpprefix, %{$xml});
+	if ($useudp) {
+		LoxBerry::IO::msudp_send_mem($msnr, $msudpport, $udpprefix, %{$xml});
+	}
+	if ($usehttp) {
+		LoxBerry::IO::mshttp_send_mem($msnr, %{$xml});
+	}
 	
 }
 
@@ -219,5 +231,23 @@ sub read_config
 	$pcfg->autosave(1);
 	$pcfg->param("Main.msudpport", 10001) if (! $pcfg->param("Main.msudpport"));
 	$pcfg->param("Main.msno", 1) if (! $pcfg->param("Main.msno"));
+	
+}
 
+sub upgrade_config
+{
+	if (! -e $pcfgfile) {
+		$pcfg = new Config::Simple(syntax=>'ini');
+		$pcfg->param("Main.ConfigVersion", "2");
+		$pcfg->write($pcfgfile);
+	}
+	$pcfg = new Config::Simple($pcfgfile);
+	$pcfg->autosave(1);
+	
+	# Update configuration
+	# V1 -> V2
+	if ($pcfg->param("Main.ConfigVersion") < 2){
+		$pcfg->param("Main.ConfigVersion", "2");
+		$pcfg->param("Main.use_udp", "True");
+	}
 }

@@ -1,27 +1,33 @@
-<div class="wide">Grünbeck Plugin</div>
-<form>
-	<TMPL_VAR MSHTML>
-	<div class="ui-field-contain">
-		<label for="msudpport">UDP-Port des Miniservers</label>
-		<input type="number" name="msudpport" id="msudpport" data-mini="false" value="<TMPL_VAR Main.msudpport>" placeholder="">
-	</div>
-	<div class="ui-field-contain">
-		<label for="gip">Grünbeck Hostname oder IP</label>
-		<input type="text" name="gip" id="gip" data-mini="false" value="<TMPL_VAR Main.gip>" placeholder="">
-	</div>
-</form>
+<TMPL_IF settings>
+	<div class="wide">Grünbeck Plugin Einstellungen</div>
+	<form>
+		<div class="ui-field-contain">
+			<label for="gip">Grünbeck Hostname oder IP</label>
+			<input type="text" name="gip" id="gip" data-mini="false" value="<TMPL_VAR Main.gip>" placeholder="">
+		</div>
+		<TMPL_VAR MSHTML>
+				<label><input type="checkbox" name="use_http" id="use_http" value="use_http" <TMPL_VAR checked_use_http>>Daten per HTTP senden (Virtuelle Eingänge)</label>
+				<label><input type="checkbox" name="use_udp" id="use_udp" value="use_udp" <TMPL_VAR checked_use_udp>>Daten per UDP senden (Virtueller UDP Eingang)</label>
+					<div class="ui-field-contain">
+						<label for="msudpport">UDP-Port des Miniservers</label>
+						<input type="number" name="msudpport" id="msudpport" data-mini="false" value="<TMPL_VAR Main.msudpport>" placeholder="">
+		
+	</form>
+</TMPL_IF>
 
-<div class="wide">Query Builder</div>
-<br>
-<label for="requestread">HTTP-Request</label>
-<textarea name="requestread" id="requestread" readonly placeholder="Wähle unten Parameter aus, um hier den notwendigen Aufruf anzuzeigen." data-mini="true"></textarea>
-<fieldset data-role="controlgroup">
-	<TMPL_LOOP GParams>
-		<input type="checkbox" class="gparameter" name="parameter-<TMPL_VAR Name>" id="parameter-<TMPL_VAR Name>" gruenbeckname="<TMPL_VAR Name>" data-mini="true">
-	<label for="parameter-<TMPL_VAR Name>"><TMPL_VAR Name>: <TMPL_VAR LangStr></label>
-	</TMPL_LOOP>
-</fieldset>
+<TMPL_IF querybuilder>
 
+	<div class="wide">Query Builder</div>
+	<br>
+	<label for="requestread">HTTP-Request</label>
+	<textarea name="requestread" id="requestread" readonly placeholder="Wähle unten Parameter aus, um hier den notwendigen Aufruf anzuzeigen." data-mini="true"></textarea>
+	<fieldset data-role="controlgroup">
+		<TMPL_LOOP GParams>
+			<input type="checkbox" class="gparameter" name="parameter-<TMPL_VAR Name>" id="parameter-<TMPL_VAR Name>" gruenbeckname="<TMPL_VAR Name>" data-mini="true">
+		<label for="parameter-<TMPL_VAR Name>"><TMPL_VAR Name>: <TMPL_VAR LangStr></label>
+		</TMPL_LOOP>
+	</fieldset>
+</TMPL_IF>
 
 	<!-- <TMPL_LOOP GParams> -->
 	<!-- <input type="text" value="Gruenbeck:\i<TMPL_VAR Name>\i\v" data-mini="true"> -->
@@ -34,6 +40,10 @@ var vars = {};
 	
 $(document).on('pageinit', function() {
 
+	if( $('#use_udp').is(':checked')) $('#msudpport').textinput('enable');
+	else  $('#msudpport').textinput('disable');
+	
+	
 	$( ":input" ).blur(function(e){change_value("change", e.target.id, $(this).val())});
 	$( "input[type='checkbox']" ).change(function(e){change_value("change", e.target.id, $(this).prop("checked"))});
 
@@ -43,6 +53,11 @@ $(document).on('pageinit', function() {
 		// $("#"+respid).text("");
 		// $("#"+respid).css("color", "");
 		
+	});
+	
+	$('#use_udp').change(function(){
+		if( $('#use_udp').is(':checked')) $('#msudpport').textinput('enable');
+		else  $('#msudpport').textinput('disable');
 	});
 
 });

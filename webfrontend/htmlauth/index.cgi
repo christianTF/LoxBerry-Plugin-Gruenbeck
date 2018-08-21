@@ -15,11 +15,7 @@ read_config();
 
 ajax() if ($R::action eq "change");
 form();
-
 exit;
-
-
-
 
 sub form
 {
@@ -33,25 +29,48 @@ sub form
 		associate => $pcfg,
 	);
 
+	# Write form to template
+	$R::form = 'settings' if (! $R::form);
+	$maintemplate->param($R::form, 1);
+	
+	our %navbar;
+	$navbar{1}{Name} = "Einstellungen";
+	$navbar{1}{URL} = 'index.cgi?form=settings';
+	$navbar{1}{active} = 1 if ($R::form eq "settings");
+	
+	$navbar{2}{Name} = "Query Builder";
+	$navbar{2}{URL} = 'index.cgi?form=querybuilder';
+	$navbar{2}{active} = 1 if ($R::form eq "querybuilder");
+	
 	# my %L = LoxBerry::System::readlanguage($maintemplate, "language.ini");
 
 	LoxBerry::Web::lbheader("Grünbeck", "https://www.loxwiki.eu/x/YgMWAQ", "");
 
-	my $mshtml = LoxBerry::Web::mslist_select_html( FORMID => 'msno', SELECTED => $pcfg->param('Main.msno'), DATA_MINI => 0, LABEL => "Miniserver an den gesendet wird" );
-
-	$maintemplate->param('MSHTML', $mshtml);
+	# For Settings form
+	if ($R::form eq 'settings') {
 	
-	my %Plang = LoxBerry::System::readlanguage("GruenbeckConfig.ini");
+		my $mshtml = LoxBerry::Web::mslist_select_html( FORMID => 'msno', SELECTED => $pcfg->param('Main.msno'), DATA_MINI => 0, LABEL => "Miniserver an den gesendet wird" );
+		$maintemplate->param('MSHTML', $mshtml);
 	
-	my @gparams = ();
-	foreach my $param (sort keys %Plang) {
-		my %p;
-		$p{'Name'} = substr($param, index($param, '.')+1);
-		$p{'LangStr'} = $Plang{$param};
-		push @gparams, \%p;
+		$maintemplate->param('checked_use_http', 'checked') if (is_enabled($pcfg->param('Main.use_http')));
+		$maintemplate->param('checked_use_udp', 'checked') if (is_enabled($pcfg->param('Main.use_udp')));
+	
+	
+	
 	}
-	$maintemplate->param('GParams', \@gparams);
 	
+	# For Query Builder form
+	if ($R::form eq 'querybuilder') {
+		my %Plang = LoxBerry::System::readlanguage("GruenbeckConfig.ini");
+		my @gparams = ();
+		foreach my $param (sort keys %Plang) {
+			my %p;
+			$p{'Name'} = substr($param, index($param, '.')+1);
+			$p{'LangStr'} = $Plang{$param};
+			push @gparams, \%p;
+		}
+		$maintemplate->param('GParams', \@gparams);
+	}
 	
 	print $maintemplate->output;
 
