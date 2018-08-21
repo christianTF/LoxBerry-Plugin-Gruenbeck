@@ -33,7 +33,7 @@ rm -r /tmp/$ARGV1\_upgrade
 
 # Update the config
 echo "<INFO> Upgrading configuration file"
-$LBPHTMLAUTH/$ARGV3/request.cgi action=upgrade_config
+REPLACELBPHTMLAUTHDIR/request.cgi action=upgrade_config
 
 # Exit with Status 0
 exit 0
