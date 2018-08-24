@@ -18,8 +18,18 @@ my $udpprefix = "Gruenbeck";
 
 my $pcfgfile = "$lbpconfigdir/gruenbeck.cfg";
 my $pcfg;
+my $dbg = 1;
+
+my %xmlresp;
+
+# Read params from URL
+my $cgi = CGI->new;
+
+print STDERR "Start\n" if ($dbg);
 
 read_config();
+
+print STDERR "Config was read\n" if ($dbg);
 
 $msnr = $pcfg->param('Main.msno') if $pcfg->param('Main.msno');
 $msudpport = $pcfg->param('Main.msudpport') if $pcfg->param('Main.msudpport');
@@ -29,15 +39,21 @@ $gcode = $pcfg->param('Main.gcode') if $pcfg->param('Main.gcode');
 $useudp = is_enabled($pcfg->param('Main.use_udp'));
 $usehttp = is_enabled($pcfg->param('Main.use_http'));
 
-# Read params from URL
-my $cgi = CGI->new;
+print STDERR "Params initialized\n" if ($dbg);
+
 
 # Upgrade config version
 my $action = uc($cgi->param('action'));
-if ($action = "upgrade_config") {
+
+print STDERR "action parameter was read\n" if ($dbg);
+
+if ($action eq "upgrade_config") {
 	upgrade_config();
 	exit();
 }
+
+print STDERR "Params from URL now are read\n" if ($dbg);
+
 
 # Params from URL overrule params from config
 $msnr = $cgi->param('ms') if $cgi->param('ms');
@@ -56,6 +72,7 @@ if ($action eq 'GET' or $action eq 'SHOW') {
 	$query = $gcode ? $query . '&code=' . $gcode . '~' : $query . '~';
 	my $cont = request_post("http://$gip:$gport$gurl", $query);
 	parse_gxml($cont);
+	xmlresponse("GET request successful", 200);
 	exit;
 }
 if ($action eq 'SET' or $action eq 'EDIT') {
@@ -66,15 +83,17 @@ if ($action eq 'SET' or $action eq 'EDIT') {
 	$query = $gcode ? $query . '&code=' . $gcode . '~' : $query . '~';
 	$cont = request_post("http://$gip:$gport$gurl", $query);
 	parse_gxml($cont);
+	xmlresponse("SET request successful", 200);
 	exit;
 }
 
-print STDERR "No action defined\n";
+print STDERR "Grünbeck: No valid action parameter in request\n";
+xmlresponse("No valid action parameter defined in request", 500);
 exit;
 
 sub params_get 
 {
-	print STDERR "Get Parameters\n";
+	print STDERR "Get Parameters\n" if ($dbg);
 	# Build query
 	my $qu;
 	my $query;
@@ -83,13 +102,13 @@ sub params_get
 	}
 	$qu = substr($qu, 0, -1) . '~';
 	$query = 'show=' . $qu;
-	print STDERR "Built query: $query\n";
+	print STDERR "Built query: $query\n" if ($dbg);
 	return $query;
 }
 
 sub params_set
 {
-	print STDERR "Set Parameters\n";
+	print STDERR "Set Parameters\n" if ($dbg);
 	my $qu;
 	# Build query
 	foreach my $param (@keywords) {
@@ -97,7 +116,7 @@ sub params_set
 		$value = param_is_base64($param, scalar $cgi->param($param), 0);
 		$qu = 'id=666&edit=' . uc($param) . ">" . $value;
 		$qu = $gcode ? $qu . '&code=' . $gcode . '~' : $qu . '~';
-		print STDERR "Edit query is $qu\n";
+		print STDERR "Edit query is $qu\n" if ($dbg);
 		my $cont = request_post("http://$gip:$gport$gurl", $qu);
 		parse_gxml($cont);
 	}
@@ -111,14 +130,15 @@ sub request_post
 
 	my $ua = LWP::UserAgent->new;
 	$ua->timeout(5);
-	print STDERR "request_post Query: $query\n";
+	print STDERR "request_post Query: $query\n" if ($dbg);
 	my $response = $ua->post($url, Content => $query);
 	# my $response = $ua->post($url, Content => 'id=665&show=D_A_1_1|D_A_1_2~');
 	if ($response->is_error) {
-		print STDERR "Could not fetch data from $gip\n";
+		print STDERR "Grünbeck: Could not fetch data from $gip\n";
+		xmlresponse("Could not fetch data from $gip. " . $response->status_line, 500);
 		return undef;
 	}
-	print STDERR $response->status_line . " " . $response->content . "\n";
+	print STDERR $response->status_line . " " . $response->content . "\n" if ($dbg);
 	return $response->content;
 
 }
@@ -128,20 +148,22 @@ sub parse_gxml
 	my ($xmlcontent) = @_;
 	
 	if (!$xmlcontent) {
-		print STDERR "parse_gxml: Empty response.\n";
+		print STDERR "Grünbeck: parse_gxml: Empty response.\n";
+		xmlresponse("Empty response from device", 500);
 		return undef;
 	}
 	
 	my $xml = XML::Simple::XMLin($xmlcontent);
 	if (lc($xml->{code}) ne "ok") {
-		print STDERR "Request seems to have failed";
+		print STDERR "Grünbeck: Request seems to have failed\n";
+		xmlresponse("POST request has failed (not ok). Content is: $xmlcontent", 500);
 		return;
 	}
 	# use Data::Dumper;
 	# print Dumper($xml);
 	foreach my $key (keys %{$xml}) {
 		$$xml{$key} = param_is_base64($key, $$xml{$key}, 1);
-		print STDERR $key . " is " . $$xml{$key} . "\n";
+		print STDERR $key . " is " . $$xml{$key} . "\n"  if ($dbg);
 	}
 
 	if ($useudp) {
@@ -150,7 +172,7 @@ sub parse_gxml
 	if ($usehttp) {
 		LoxBerry::IO::mshttp_send_mem($msnr, %{$xml});
 	}
-	
+	$xmlresp{'dataset'} = %{$xml};
 }
 
 sub param_is_base64
@@ -224,10 +246,10 @@ sub read_config
 	if (! -e $pcfgfile) {
 		$pcfg = new Config::Simple(syntax=>'ini');
 		$pcfg->param("Main.ConfigVersion", "1");
-		$pcfg->write($pcfgfile);
+		$pcfg->write($pcfgfile) or xmlresponse($pcfgfile . ": " . $pcfg->error(), 500);
 		
 	}
-	$pcfg = new Config::Simple($pcfgfile);
+	$pcfg = new Config::Simple($pcfgfile)or xmlresponse($pcfgfile . ": " . $pcfg->error(), 500);
 	$pcfg->autosave(1);
 	$pcfg->param("Main.msudpport", 10001) if (! $pcfg->param("Main.msudpport"));
 	$pcfg->param("Main.msno", 1) if (! $pcfg->param("Main.msno"));
@@ -239,9 +261,9 @@ sub upgrade_config
 	if (! -e $pcfgfile) {
 		$pcfg = new Config::Simple(syntax=>'ini');
 		$pcfg->param("Main.ConfigVersion", "2");
-		$pcfg->write($pcfgfile);
+		$pcfg->write($pcfgfile) or xmlresponse($pcfgfile . ": " . $pcfg->error(), 500);
 	}
-	$pcfg = new Config::Simple($pcfgfile);
+	$pcfg = new Config::Simple($pcfgfile) or xmlresponse($pcfgfile . ": " . $pcfg->error(), 500);
 	$pcfg->autosave(1);
 	
 	# Update configuration
@@ -249,5 +271,32 @@ sub upgrade_config
 	if ($pcfg->param("Main.ConfigVersion") < 2){
 		$pcfg->param("Main.ConfigVersion", "2");
 		$pcfg->param("Main.use_udp", "True");
+	}
+}
+
+sub xmlresponse
+{
+	my ($message, $httperr)  = @_;
+	if ($httperr >= 400) {
+		$xmlresp{'success'} = 'false';
+		$xmlresp{'errormessage'} = $message;
+		print $cgi->header('text/xml', "$httperr Execution error");
+	} else {
+		$xmlresp{'success'} = 'true';
+		$xmlresp{'successmessage'} = $message;
+		print $cgi->header('text/xml', "$httperr OK");
+	}
+	print XMLout(\%xmlresp);
+	
+	exit 1 if ($httperr >= 400);
+	exit 0;
+}
+
+END
+{
+	my $err = $?;
+	if ($xmlresp{'success'} eq "") {
+		xmlresponse("Finished without errors", 200) if ($err == 0);
+		xmlresponse("Unknown ERROR", 500) if ($err != 0);
 	}
 }
