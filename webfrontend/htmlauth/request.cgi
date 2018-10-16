@@ -2,12 +2,11 @@
 
 use LoxBerry::System;
 use LoxBerry::IO;
+use LoxBerry::Log;
 use LWP::UserAgent;
 use XML::Simple;
 use MIME::Base64;
 use CGI;
-
-$LoxBerry::IO::DEBUG = 1;
 
 my $gip = '192.168.1.123';
 my $gport = 80;
@@ -18,18 +17,28 @@ my $udpprefix = "Gruenbeck";
 
 my $pcfgfile = "$lbpconfigdir/gruenbeck.cfg";
 my $pcfg;
-my $dbg = 1;
+# my $dbg = 1;
 
 my %xmlresp;
+
+my $log = LoxBerry::Log->new (
+    name => 'request',
+	addtime => 1,
+);
 
 # Read params from URL
 my $cgi = CGI->new;
 
-print STDERR "Start\n" if ($dbg);
-
+LOGSTART "Request started";
+LOGINF "Reading configuration";
 read_config();
 
-print STDERR "Config was read\n" if ($dbg);
+LOGOK "Config was read";
+
+if($log->loglevel() eq "7") {
+	LOGWARN "Enabling LoxBerry::IO::DEBUG - Open also the Apache log to debug the sending routines of LoxBerry";
+	$LoxBerry::IO::DEBUG = 1;
+}
 
 $msnr = $pcfg->param('Main.msno') if $pcfg->param('Main.msno');
 $msudpport = $pcfg->param('Main.msudpport') if $pcfg->param('Main.msudpport');
@@ -39,21 +48,19 @@ $gcode = $pcfg->param('Main.gcode') if $pcfg->param('Main.gcode');
 $useudp = is_enabled($pcfg->param('Main.use_udp'));
 $usehttp = is_enabled($pcfg->param('Main.use_http'));
 
-print STDERR "Params initialized\n" if ($dbg);
-
+LOGOK "Params initialized";
 
 # Upgrade config version
 my $action = uc($cgi->param('action'));
 
-print STDERR "action parameter was read\n" if ($dbg);
+LOGINF "action parameter was read: $action";
 
 if ($action eq "upgrade_config") {
 	upgrade_config();
 	exit();
 }
 
-print STDERR "Params from URL now are read\n" if ($dbg);
-
+LOGINF "Params from URL now are read";
 
 # Params from URL overrule params from config
 $msnr = $cgi->param('ms') if $cgi->param('ms');
@@ -62,6 +69,20 @@ $gip = $cgi->param('gip') if $cgi->param('gip');
 $gport = $cgi->param('gport') if $cgi->param('gport');
 $gcode = $cgi->param('code') if $cgi->param('code');
 $LoxBerry::IO::mem_sendall = 1 if $cgi->param('force');
+
+if ($log->loglevel() == 7) {
+	LOGINF "Used parameters:";
+	LOGDEB "Action: $action";
+	LOGDEB "MSNR: $msnr";
+	LOGDEB "UDP: $msudpport";
+	LOGDEB "Grünbeck IP: $gip";
+	LOGDEB "Grünbeck Port: $gport";
+	LOGDEB "Grünbeck Code: $gcode";
+	LOGDEB "Force sending: $LoxBerry::IO::mem_sendall";
+	LOGDEB "Use UDP: $useudp";
+	LOGDEB "Use HTTP: $usehttp";
+	
+}
 
 $cgi->delete('action', 'ms', 'msport', 'gip', 'gport', 'force', 'code');
 
@@ -87,13 +108,13 @@ if ($action eq 'SET' or $action eq 'EDIT') {
 	exit;
 }
 
-print STDERR "Grünbeck: No valid action parameter in request\n";
+LOGCRIT "No valid action parameter in request";
 xmlresponse("No valid action parameter defined in request", 500);
 exit;
 
 sub params_get 
 {
-	print STDERR "Get Parameters\n" if ($dbg);
+	LOGINF "Get Parameters";
 	# Build query
 	my $qu;
 	my $query;
@@ -102,13 +123,13 @@ sub params_get
 	}
 	$qu = substr($qu, 0, -1) . '~';
 	$query = 'show=' . $qu;
-	print STDERR "Built query: $query\n" if ($dbg);
+	LOGINF "Get query is: $query";
 	return $query;
 }
 
 sub params_set
 {
-	print STDERR "Set Parameters\n" if ($dbg);
+	LOGINF "Set Parameters";
 	my $qu;
 	# Build query
 	foreach my $param (@keywords) {
@@ -116,7 +137,7 @@ sub params_set
 		$value = param_is_base64($param, scalar $cgi->param($param), 0);
 		$qu = 'id=666&edit=' . uc($param) . ">" . $value;
 		$qu = $gcode ? $qu . '&code=' . $gcode . '~' : $qu . '~';
-		print STDERR "Edit query is $qu\n" if ($dbg);
+		LOGINF "Edit query is: $qu";
 		my $cont = request_post("http://$gip:$gport$gurl", $qu);
 		parse_gxml($cont);
 	}
@@ -130,15 +151,15 @@ sub request_post
 
 	my $ua = LWP::UserAgent->new;
 	$ua->timeout(5);
-	print STDERR "request_post Query: $query\n" if ($dbg);
+	LOGDEB "request_post Query: $query";
 	my $response = $ua->post($url, Content => $query);
 	# my $response = $ua->post($url, Content => 'id=665&show=D_A_1_1|D_A_1_2~');
 	if ($response->is_error) {
-		print STDERR "Grünbeck: Could not fetch data from $gip\n";
+		LOGERR "Grünbeck: Could not fetch data from $gip";
 		xmlresponse("Could not fetch data from $gip. " . $response->status_line, 500);
 		return undef;
 	}
-	print STDERR $response->status_line . " " . $response->content . "\n" if ($dbg);
+	LOGDEB "Response status: " . $response->status_line . " | Full response: " . $response->content;
 	return $response->content;
 
 }
@@ -148,14 +169,15 @@ sub parse_gxml
 	my ($xmlcontent) = @_;
 	
 	if (!$xmlcontent) {
-		print STDERR "Grünbeck: parse_gxml: Empty response.\n";
+		LOGERR "Grünbeck: parse_gxml: Empty response.";
 		xmlresponse("Empty response from device", 500);
 		return undef;
 	}
 	
 	my $xml = XML::Simple::XMLin($xmlcontent);
 	if (lc($xml->{code}) ne "ok") {
-		print STDERR "Grünbeck: Request seems to have failed\n";
+		LOGERR "Grünbeck: Request seems to have failed: Code $xml->{code}";
+		LOGDEB "XML Content is: $xmlcontent";
 		xmlresponse("POST request has failed (not ok). Content is: $xmlcontent", 500);
 		return;
 	}
@@ -163,14 +185,17 @@ sub parse_gxml
 	# print Dumper($xml);
 	foreach my $key (keys %{$xml}) {
 		$$xml{$key} = param_is_base64($key, $$xml{$key}, 1);
-		print STDERR $key . " is " . $$xml{$key} . "\n"  if ($dbg);
+		LOGDEB "Key " . $key . ": Value " . $$xml{$key};
 	}
 
 	if ($useudp) {
+		LOGINF "Sending data via UDP";
 		LoxBerry::IO::msudp_send_mem($msnr, $msudpport, $udpprefix, %{$xml});
 	}
 	if ($usehttp) {
+		LOGINF "Sending data via HTTP";
 		LoxBerry::IO::mshttp_send_mem($msnr, %{$xml});
+		
 	}
 	$xmlresp{'dataset'} = %{$xml};
 }
@@ -196,11 +221,14 @@ sub param_is_base64
 		/;
 	if (grep( /^$param$/, @encparams )) {
 		if ($decode) {
+			LOGINF "Decoding $param value $value to string";
 			return decode_base64($value);
 		} else {
+			LOGINF "Encoding $param value $value to BASE64";
 			return encode_base64($value);
 		}
 	}
+	LOGDEB "Param $param value $value does not need to be BASE64-encoded/decoded";
 	return $value;
 }
 
@@ -278,10 +306,12 @@ sub xmlresponse
 {
 	my ($message, $httperr)  = @_;
 	if ($httperr >= 400) {
+		LOGWARN "HTTP error $httperr: $message";
 		$xmlresp{'success'} = 'false';
 		$xmlresp{'errormessage'} = $message;
 		print $cgi->header('text/xml', "$httperr Execution error");
 	} else {
+		LOGOK "HTTP success $httperr: $message";
 		$xmlresp{'success'} = 'true';
 		$xmlresp{'successmessage'} = $message;
 		print $cgi->header('text/xml', "$httperr OK");
@@ -299,4 +329,6 @@ END
 		xmlresponse("Finished without errors", 200) if ($err == 0);
 		xmlresponse("Unknown ERROR", 500) if ($err != 0);
 	}
+	LOGEND "Finished without errors" if ($err == 0);
+	LOGEND "Finished WITH ERRORS" if ($err != 0);
 }

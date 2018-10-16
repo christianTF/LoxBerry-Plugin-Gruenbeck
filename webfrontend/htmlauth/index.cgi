@@ -41,6 +41,12 @@ sub form
 	$navbar{2}{Name} = "Query Builder";
 	$navbar{2}{URL} = 'index.cgi?form=querybuilder';
 	$navbar{2}{active} = 1 if ($R::form eq "querybuilder");
+
+	$navbar{9}{Name} = "Logfiles";
+	$navbar{9}{URL} = 'index.cgi?form=logfiles';
+	$navbar{9}{active} = 1 if ($R::form eq "logfiles");
+
+
 	
 	# my %L = LoxBerry::System::readlanguage($maintemplate, "language.ini");
 
@@ -54,8 +60,6 @@ sub form
 	
 		$maintemplate->param('checked_use_http', 'checked') if (is_enabled($pcfg->param('Main.use_http')));
 		$maintemplate->param('checked_use_udp', 'checked') if (is_enabled($pcfg->param('Main.use_udp')));
-	
-	
 	
 	}
 	
@@ -72,6 +76,19 @@ sub form
 		$maintemplate->param('GParams', \@gparams);
 	}
 	
+	if ($R::form eq 'logfiles') {
+		
+		my $loglist_html;
+		eval {
+			$loglist_html = LoxBerry::Web::loglist_html();
+		};
+		if ($@) {
+			$loglist_html = "Diese Funktion ist erst ab LoxBerry V1.2.5 verfügbar.";
+		}
+		$maintemplate->param("LOGLIST_HTML", $loglist_html);
+	}
+	
+
 	print $maintemplate->output;
 
 	LoxBerry::Web::lbfooter();
