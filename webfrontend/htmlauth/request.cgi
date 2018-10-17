@@ -185,7 +185,7 @@ sub parse_gxml
 	# print Dumper($xml);
 	foreach my $key (keys %{$xml}) {
 		$$xml{$key} = param_is_base64($key, $$xml{$key}, 1);
-		LOGDEB "Key " . $key . ": Value " . $$xml{$key};
+		LOGDEB "Key '" . $key . "': Value '" . $$xml{$key} . "'";
 	}
 
 	if ($useudp) {
@@ -207,11 +207,14 @@ sub param_is_base64
 	my ($param, $value, $decode) = @_;
 	$param = uc($param);
 	
+	$param = trim($param);
+	$value = trim($value);
+	
 	# List of parameters that need to Base64-Encode
 	my @encparams = qw/	
-		D_Y_8_1_1 
-		D_Y_8_1_2 
-		D_Y_8_1_3 
+		D_Y_8_1_1
+		D_Y_8_1_2
+		D_Y_8_1_3
 		D_Y_8_2
 		D_Y_8_4
 		D_Y_8_5
